@@ -152,37 +152,76 @@
               <title>Estimate - ${job.jobNumber}</title>
               <style>
                 body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 40px; color: #333; line-height: 1.6; max-width: 800px; margin: 0 auto; }
+                
+                /* COVER PAGE STYLES */
+                .cover-page { display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; min-height: 85vh; page-break-after: always; }
+                .cover-title { font-size: 46px; font-weight: bold; color: #111; margin-bottom: 10px; text-transform: uppercase; border-bottom: 4px solid #facc15; padding-bottom: 15px; letter-spacing: 2px; }
+                .cover-subtitle { font-size: 32px; color: #222; font-weight: bold; margin-bottom: 5px; text-transform: uppercase; }
+                .cover-phone { font-size: 22px; color: #555; margin-bottom: 50px; }
+                .cover-client-info { font-size: 20px; margin-top: 40px; padding: 40px; border: 2px solid #eee; border-radius: 8px; min-width: 400px; background: #fafafa; }
+                
+                /* ESTIMATE STYLES */
                 .header { border-bottom: 3px solid #facc15; padding-bottom: 20px; margin-bottom: 30px; display: flex; justify-content: space-between; align-items: flex-end; }
                 h1 { margin: 0; color: #111; font-size: 32px; letter-spacing: 1px; text-transform: uppercase; }
+                .info-block { margin-bottom: 30px; }
                 .row { display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #eee; }
                 .total-row { font-weight: bold; font-size: 1.4em; border-top: 3px solid #333; margin-top: 15px; padding-top: 15px; display: flex; justify-content: space-between;}
+                .footer-insured { font-weight: bold; text-transform: uppercase; margin-top: 15px; display: block; font-size: 16px; color: #111; letter-spacing: 1px; }
+                
+                @media print { 
+                    body { padding: 0; } 
+                    .cover-page { padding-top: 15vh; min-height: 100vh; }
+                }
               </style>
             </head>
             <body>
+              <div class="cover-page">
+                <div class="cover-title">OFFICIAL QUOTE</div>
+                <div class="cover-subtitle">SEALWRX</div>
+                <div class="cover-phone">315-577-3806</div>
+
+                <div class="cover-client-info">
+                  <div style="color: #666; font-size: 14px; text-transform: uppercase; margin-bottom: 15px;">Prepared For:</div>
+                  <div style="font-weight: bold; color: #000; font-size: 28px; line-height: 1.2;">${job.name}</div>
+                  ${job.address ? `<div style="margin-top: 12px; color: #444; font-size: 18px;">${job.address}</div>` : ''}
+                </div>
+              </div>
+
               <div class="header">
-                <div><h1>SEALWRX</h1><div style="color: #666; margin-top: 5px; font-weight: bold;">PAVEMENT PROTECTION ESTIMATE</div></div>
+                <div>
+                  <h1>SEALWRX</h1>
+                  <div style="color: #666; margin-top: 5px; font-weight: bold;">PAVEMENT PROTECTION ESTIMATE</div>
+                </div>
                 <div style="text-align: right;">
-                  <p style="margin:0;">Job: <strong>${job.jobNumber}</strong></p>
+                  <p style="margin:0;">Job Number: <strong>${job.jobNumber}</strong></p>
+                  <p style="margin:0;">Date Prepared: ${new Date(job.date + 'T12:00:00').toLocaleDateString()}</p>
                   <p style="margin:0; color: #ef4444; font-weight: bold;">Valid Until: ${expirationDate}</p>
                 </div>
               </div>
-              <div style="margin-bottom: 30px;">
+              
+              <div class="info-block">
                 <h3 style="color: #666; margin-bottom: 5px; text-transform: uppercase; font-size: 14px;">Prepared For:</h3>
-                <div style="font-size: 18px; font-weight: bold;">${job.name}</div>
+                <div style="font-size: 18px; font-weight: bold; color: #000;">${job.name}</div>
                 ${job.phone ? `<div>${job.phone}</div>` : ''}
                 ${job.address ? `<div>${job.address}</div>` : ''}
               </div>
+              
               <h3 style="color: #666; margin-bottom: 10px; text-transform: uppercase; font-size: 14px;">Job Details & Charges:</h3>
               <div class="row"><span>Crack Fill Materials</span><span>$${cf.toFixed(2)}</span></div>
               <div class="row"><span>Sealing / Labor</span><span>$${sl.toFixed(2)}</span></div>
               <div class="row"><span>Striping</span><span>$${st.toFixed(2)}</span></div>
               <div class="row" style="color: #666; font-size: 14px;"><span>Subtotal</span><span>$${sub.toFixed(2)}</span></div>
+              
               ${discAmt > 0 ? `<div class="row" style="color: #ef4444;"><span>Discount (${job.discountPct||0}%)</span><span>-$${discAmt.toFixed(2)}</span></div>` : ''}
               ${taxAmt > 0 ? `<div class="row" style="color: #666; font-size: 14px;"><span>Sales Tax (${job.taxPct||0}%)</span><span>+$${taxAmt.toFixed(2)}</span></div>` : ''}
+              
               <div class="total-row"><span>TOTAL AMOUNT</span><span>$${total.toFixed(2)}</span></div>
-              ${job.notes ? `<div style="margin-top: 30px; font-size: 14px;"><strong>Notes:</strong><br/>${job.notes}</div>` : ''}
+              
+              ${job.notes ? `<div style="margin-top: 30px; font-size: 14px; color: #555;"><strong>Notes:</strong><br/>${job.notes}</div>` : ''}
+              
               <p style="margin-top: 60px; text-align: center; color: #666; font-size: 14px; border-top: 1px solid #eee; padding-top: 20px;">
-                This estimate is subject to property inspection and is valid for 30 days.<br><strong>WE ARE FULLY INSURED</strong>
+                This estimate is subject to property inspection and is valid for 30 days.<br>
+                <span class="footer-insured">WE ARE FULLY INSURED</span>
               </p>
             </body>
           </html>
