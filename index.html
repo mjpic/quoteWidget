@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SealWRX Quote Generator Widget</title>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Oswald:wght@400;600;700&display=swap" rel="stylesheet">
+  
+  <style>
+    :root {
+      --bg: #09090b; --surface: #18181b; --border: #27272a; --text: #e4e4e7;
+      --muted: #a1a1aa; --accent: #facc15; --success: #22c55e; --warning: #f97316; --danger: #ef4444;
+    }
+    /* Adjusted for embedding: completely fluid, no page margins */
+    html, body { margin: 0; padding: 0; width: 100%; height: 100%; background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; -webkit-font-smoothing: antialiased; }
+    * { box-sizing: border-box; }
+    
+    .app-container { width: 100%; height: 100%; display: flex; flex-direction: column; }
+    
+    /* Tightened header for widget view */
+    .header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 16px 20px; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 10; }
+    .header-titles { display: flex; flex-direction: column; }
+    
+    .content { padding: 20px; flex-grow: 1; overflow-y: auto; }
+
+    .grid { display: grid; gap: 16px; }
+    .grid-2 { grid-template-columns: 1fr 1fr; }
+    .grid-3 { grid-template-columns: 1fr 1fr 1fr; }
+    .grid-4 { grid-template-columns: 1fr 1fr 1fr 1fr; }
+    @media (max-width: 768px) { 
+      .grid-2, .grid-3 { grid-template-columns: 1fr; } 
+      .grid-4 { grid-template-columns: 1fr 1fr; }
+    }
+    
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 20px; }
+    .card-title { font-size: 12px; letter-spacing: 1px; color: var(--muted); text-transform: uppercase; margin-bottom: 16px; font-weight: 600; }
+    
+    input, select, textarea { background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 10px 12px; border-radius: 6px; font-family: inherit; font-size: 13px; width: 100%; margin-bottom: 4px; }
+    input:focus, textarea:focus { outline: none; border-color: var(--accent); }
+    textarea { resize: vertical; }
+    
+    .btn-save { background: var(--success); color: #000; border: none; font-weight: 700; font-family: 'Oswald', sans-serif; letter-spacing: 1px; padding: 10px 20px; cursor: pointer; border-radius: 6px; white-space: nowrap; font-size: 14px; }
+    .btn-secondary { background: var(--surface); color: var(--text); border: 1px solid var(--border); font-weight: 600; padding: 8px 14px; cursor: pointer; border-radius: 6px; font-size: 12px; }
+    .btn-secondary:hover { border-color: var(--accent); }
+    
+    .contact-sub { font-size: 11px; color: var(--muted); display: block; margin-top: 2px; }
+    .job-badge { font-size: 11px; background: var(--accent); color: #000; padding: 4px 8px; border-radius: 4px; margin-right: 12px; font-weight: bold; font-family: monospace; display: inline-block; }
+
+    /* Stacked layout better suited for narrow iframes */
+    .crm-container { display: flex; flex-direction: column; gap: 24px; }
+    
+    @media (min-width: 1024px) {
+      .crm-container { display: grid; grid-template-columns: 300px 1fr; }
+      .sticky-sidebar { position: sticky; top: 20px; align-self: start; }
+    }
+
+    .customer-block { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 20px; margin-bottom: 20px; }
+    .customer-header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 1px solid var(--border); padding-bottom: 12px; margin-bottom: 16px; flex-wrap: wrap; gap: 12px; }
+    .customer-title { font-family: 'Oswald', sans-serif; font-size: 20px; margin: 0; color: #fff; text-transform: uppercase; }
+    
+    .job-item { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+    .job-item:last-child { margin-bottom: 0; }
+    .job-top-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 12px; }
+    .quote-box { background: var(--surface); border: 1px dashed var(--border); border-radius: 6px; padding: 16px; margin: 12px 0; }
+    .quote-totals { text-align: right; font-family: 'Oswald', sans-serif; font-size: 20px; color: var(--accent); margin-top: 12px; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const API_URL = "https://script.google.com/macros/s/AKfycbyKWJE-paxhj6_ppU03rSYwiW2yjkPjdFoR9iKjMC9JW5WMCOBwkqk7iufeEvoKIrdu/exec"; 
+    const { useState, useEffect } = React;
+
+    function calcJobTotal(job) {
+      if (!job.crackFill && !job.sealingLabor && !job.stripingCost && job.amount) return Number(job.amount);
+      const cf = Number(job.crackFill) || 0;
+      const sl = Number(job.sealingLabor) || 0;
+      const st = Number(job.stripingCost) || 0;
+      const subtotal = cf + sl + st;
+      const discountAmt = subtotal * ((Number(job.discountPct) || 0) / 100);
+      const taxAmt = (subtotal - discountAmt) * ((Number(job.taxPct) || 0) / 100);
+      return subtotal - discountAmt + taxAmt;
+    }
+
+    function SealWRXBoard() {
+      const [contacts, setContacts] = useState([]); 
+      const [newContact, setNewContact] = useState({ 
+        name: "", phone: "", address: "", type: "Driveway",
+        date: new Date().toISOString().split('T')[0], notes: "", 
+        crackFill: "", sealingLabor: "", stripingCost: "", discountPct: "", taxPct: "8.0" 
+      });
+      
+      const [isLoading, setIsLoading] = useState(true);
+      const [isSaving, setIsSaving] = useState(false);
+
+      useEffect(() => {
+        fetch(API_URL).then(res => res.json()).then(data => {
+          if (data.contacts) setContacts(data.contacts);
+          setIsLoading(false);
+        }).catch(() => setIsLoading(false));
+      }, []);
+
+      const generateJobNumber = () => `SWX-${Date.now().toString().slice(-6)}`;
+
+      const handleAddContact = (e) => {
+        e.preventDefault();
+        const jobNumber = generateJobNumber();
+        setContacts([{ ...newContact, id: Date.now(), jobNumber }, ...contacts]);
+        setNewContact({ name: "", phone: "", address: "", type: "Driveway", date: new Date().toISOString().split('T')[0], notes: "", crackFill: "", sealingLabor: "", stripingCost: "", discountPct: "", taxPct: "8.0" });
+      };
+
+      const handleTextQuote = (job) => {
+        const total = calcJobTotal(job).toFixed(2);
+        const message = `Hi ${job.name}, this is SealWRX. Your estimate for Job #${job.jobNumber} is $${total}. Valid for 30 days. Let us know if you'd like to get on the schedule! Call/Text: 315-577-3806 or visit tinyurl.com/sealwrx`;
+        navigator.clipboard.writeText(message)
+          .then(() => alert("📋 Quote copied to clipboard!"))
+          .catch(() => alert("❌ Failed to copy."));
+      };
+
+      const updateContact = (id, field, val) => setContacts(prev => prev.map(c => c.id === id ? { ...c, [field]: val } : c));
+
+      const handleAddJobToCustomer = (name, phone, address) => {
+        const jobNumber = generateJobNumber();
+        setContacts([{ id: Date.now(), jobNumber, name, phone, address, type: "Driveway", date: new Date().toISOString().split('T')[0], notes: "", crackFill: "", sealingLabor: "", stripingCost: "", discountPct: "", taxPct: "8.0" }, ...contacts]);
+      };
+
+      const saveData = () => {
+        setIsSaving(true);
+        fetch(API_URL, { method: "POST", mode: "no-cors", headers: { "Content-Type": "text/plain" }, body: JSON.stringify({ weeks: [], contacts }) })
+        .then(() => { setIsSaving(false); alert("✅ Cloud Data Saved!"); })
+        .catch(() => { setIsSaving(false); alert("✅ Data Saved to Cloud!"); });
+      };
+
+      const handlePrintDocument = (job) => {
+        const cf = Number(job.crackFill) || 0;
+        const sl = Number(job.sealingLabor) || 0;
+        const st = Number(job.stripingCost) || 0;
+        const sub = (cf + sl + st) || Number(job.amount) || 0;
+        const discAmt = sub * ((Number(job.discountPct) || 0) / 100);
+        const taxAmt = (sub - discAmt) * ((Number(job.taxPct) || 0) / 100);
+        const total = sub - discAmt + taxAmt;
+        const expirationDate = new Date(new Date(job.date + 'T12:00:00').getTime() + 30*24*60*60*1000).toLocaleDateString();
+
+        const printWin = window.open('', '_blank');
+        printWin.document.write(`
+          <html>
+            <head>
+              <title>Estimate - ${job.jobNumber}</title>
+              <style>
+                body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 40px; color: #333; line-height: 1.6; max-width: 800px; margin: 0 auto; }
+                .header { border-bottom: 3px solid #facc15; padding-bottom: 20px; margin-bottom: 30px; display: flex; justify-content: space-between; align-items: flex-end; }
+                h1 { margin: 0; color: #111; font-size: 32px; letter-spacing: 1px; text-transform: uppercase; }
+                .row { display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #eee; }
+                .total-row { font-weight: bold; font-size: 1.4em; border-top: 3px solid #333; margin-top: 15px; padding-top: 15px; display: flex; justify-content: space-between;}
+              </style>
+            </head>
+            <body>
+              <div class="header">
+                <div><h1>SEALWRX</h1><div style="color: #666; margin-top: 5px; font-weight: bold;">PAVEMENT PROTECTION ESTIMATE</div></div>
+                <div style="text-align: right;">
+                  <p style="margin:0;">Job: <strong>${job.jobNumber}</strong></p>
+                  <p style="margin:0; color: #ef4444; font-weight: bold;">Valid Until: ${expirationDate}</p>
+                </div>
+              </div>
+              <div style="margin-bottom: 30px;">
+                <h3 style="color: #666; margin-bottom: 5px; text-transform: uppercase; font-size: 14px;">Prepared For:</h3>
+                <div style="font-size: 18px; font-weight: bold;">${job.name}</div>
+                ${job.phone ? `<div>${job.phone}</div>` : ''}
+                ${job.address ? `<div>${job.address}</div>` : ''}
+              </div>
+              <h3 style="color: #666; margin-bottom: 10px; text-transform: uppercase; font-size: 14px;">Job Details & Charges:</h3>
+              <div class="row"><span>Crack Fill Materials</span><span>$${cf.toFixed(2)}</span></div>
+              <div class="row"><span>Sealing / Labor</span><span>$${sl.toFixed(2)}</span></div>
+              <div class="row"><span>Striping</span><span>$${st.toFixed(2)}</span></div>
+              <div class="row" style="color: #666; font-size: 14px;"><span>Subtotal</span><span>$${sub.toFixed(2)}</span></div>
+              ${discAmt > 0 ? `<div class="row" style="color: #ef4444;"><span>Discount (${job.discountPct||0}%)</span><span>-$${discAmt.toFixed(2)}</span></div>` : ''}
+              ${taxAmt > 0 ? `<div class="row" style="color: #666; font-size: 14px;"><span>Sales Tax (${job.taxPct||0}%)</span><span>+$${taxAmt.toFixed(2)}</span></div>` : ''}
+              <div class="total-row"><span>TOTAL AMOUNT</span><span>$${total.toFixed(2)}</span></div>
+              ${job.notes ? `<div style="margin-top: 30px; font-size: 14px;"><strong>Notes:</strong><br/>${job.notes}</div>` : ''}
+              <p style="margin-top: 60px; text-align: center; color: #666; font-size: 14px; border-top: 1px solid #eee; padding-top: 20px;">
+                This estimate is subject to property inspection and is valid for 30 days.<br><strong>WE ARE FULLY INSURED</strong>
+              </p>
+            </body>
+          </html>
+        `);
+        printWin.document.close();
+        printWin.focus();
+        setTimeout(() => { printWin.print(); }, 250);
+      };
+
+      const groupedCustomers = {};
+      contacts.forEach(c => {
+        const key = (c.name || "Unknown").trim().toLowerCase();
+        if (!groupedCustomers[key]) groupedCustomers[key] = { name: c.name, phone: c.phone, address: c.address, jobs: [] };
+        groupedCustomers[key].jobs.push(c);
+      });
+
+      if (isLoading) return <div style={{padding: 20, color: 'var(--accent)', fontFamily:'Oswald'}}>LOADING CLOUD DATA...</div>;
+
+      return (
+        <div className="app-container">
+          <div className="header">
+            <div className="header-titles">
+              <div style={{ color: "var(--accent)", fontSize: 11, letterSpacing: 3, fontWeight: 600 }}>SEALWRX</div>
+              <h1 style={{fontFamily:'Oswald', margin:0, letterSpacing:'1px', fontSize: '20px'}}>QUOTE GENERATOR</h1>
+            </div>
+            <button onClick={saveData} className="btn-save">{isSaving ? "SAVING..." : "💾 SAVE DATA"}</button>
+          </div>
+
+          <div className="content">
+            <div className="crm-container">
+              <div className="card sticky-sidebar">
+                <div className="card-title">Create New Quote</div>
+                <form onSubmit={handleAddContact} style={{display:'flex', flexDirection:'column', gap:'8px'}}>
+                  <input type="text" placeholder="Customer Name *" required value={newContact.name} onChange={e => setNewContact({...newContact, name: e.target.value})} />
+                  <input type="text" placeholder="Phone Number" value={newContact.phone} onChange={e => setNewContact({...newContact, phone: e.target.value})} />
+                  <input type="text" placeholder="Street Address" value={newContact.address} onChange={e => setNewContact({...newContact, address: e.target.value})} />
+                  <div style={{ borderTop: '1px solid var(--border)', margin: '8px 0 0 0', paddingTop: '12px' }} className="contact-sub">Job Quote Details:</div>
+                  <div className="grid grid-3" style={{gap: '8px'}}>
+                    <input type="number" placeholder="Crack Fill $" value={newContact.crackFill} onChange={e => setNewContact({...newContact, crackFill: e.target.value})} />
+                    <input type="number" placeholder="Labor $" value={newContact.sealingLabor} onChange={e => setNewContact({...newContact, sealingLabor: e.target.value})} />
+                    <input type="number" placeholder="Striping $" value={newContact.stripingCost} onChange={e => setNewContact({...newContact, stripingCost: e.target.value})} />
+                  </div>
+                  <label style={{fontSize:'11px', color:'var(--muted)', marginTop:'4px'}}>Quote Date</label>
+                  <input type="date" value={newContact.date} onChange={e => setNewContact({...newContact, date: e.target.value})} />
+                  <button type="submit" className="btn-save" style={{background:'var(--accent)', marginTop:'8px'}}>CREATE</button>
+                </form>
+              </div>
+
+              <div>
+                {Object.keys(groupedCustomers).length === 0 && <div style={{color: "var(--muted)", fontStyle: "italic"}}>No quotes generated yet.</div>}
+                {Object.values(groupedCustomers).map(group => (
+                  <div key={group.name} className="customer-block">
+                    <div className="customer-header">
+                      <div>
+                        <h2 className="customer-title">{group.name}</h2>
+                        <div className="contact-sub">{group.phone || "No Phone"} &bull; {group.address || "No Address"}</div>
+                      </div>
+                      <button onClick={() => handleAddJobToCustomer(group.name, group.phone, group.address)} className="btn-secondary" style={{ background: 'var(--accent)', color: '#000', border: 'none' }}>
+                        + ADD QUOTE
+                      </button>
+                    </div>
+
+                    <div className="grid">
+                      {group.jobs.map(job => (
+                        <div key={job.id} className="job-item">
+                          <div className="job-top-row">
+                            <div>
+                              <span className="job-badge">{job.jobNumber || 'LEGACY-JOB'}</span>
+                              <input type="date" value={job.date} onChange={e => updateContact(job.id, 'date', e.target.value)} style={{border:'none', fontSize:'12px', padding:0, background:'transparent', color:'var(--muted)', width: 'auto'}} />
+                            </div>
+                            <button onClick={() => setContacts(contacts.filter(con => con.id !== job.id))} style={{color:'var(--danger)', background:'none', border:'none', cursor:'pointer', fontSize:'12px'}}>Delete</button>
+                          </div>
+
+                          <div className="quote-box">
+                            <div className="grid grid-4" style={{gap: '8px'}}>
+                              <div><label className="contact-sub">Crack Fill</label><input type="number" value={job.crackFill || ''} onChange={e => updateContact(job.id, 'crackFill', e.target.value)} /></div>
+                              <div><label className="contact-sub">Labor</label><input type="number" value={job.sealingLabor || ''} onChange={e => updateContact(job.id, 'sealingLabor', e.target.value)} /></div>
+                              <div><label className="contact-sub">Striping</label><input type="number" value={job.stripingCost || ''} onChange={e => updateContact(job.id, 'stripingCost', e.target.value)} /></div>
+                              <div className="grid grid-2" style={{gap: '4px'}}>
+                                <div><label className="contact-sub">Disc %</label><input type="number" value={job.discountPct || ''} onChange={e => updateContact(job.id, 'discountPct', e.target.value)} /></div>
+                                <div><label className="contact-sub">Tax %</label><input type="number" value={job.taxPct || '8.0'} onChange={e => updateContact(job.id, 'taxPct', e.target.value)} /></div>
+                              </div>
+                            </div>
+                            <div className="quote-totals">${calcJobTotal(job).toFixed(2)}</div>
+                          </div>
+
+                          <div className="grid grid-2" style={{ alignItems: 'end', gap: '12px' }}>
+                            <textarea value={job.notes || ""} maxLength={200} onChange={e => updateContact(job.id, 'notes', e.target.value)} placeholder="Notes..." style={{ width: '100%', minHeight: '36px', margin: 0 }} />
+                            <div style={{ textAlign: 'right', display: 'flex', gap: '8px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                              <button onClick={() => handleTextQuote(job)} className="btn-secondary" style={{ color: 'var(--accent)', borderColor: 'var(--accent)' }}>📋 COPY</button>
+                              <button onClick={() => handlePrintDocument(job)} className="btn-secondary">📄 PDF</button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    ReactDOM.createRoot(document.getElementById('root')).render(<SealWRXBoard />);
+  </script>
+</body>
+</html>
